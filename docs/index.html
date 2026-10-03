@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AetherMeter — DPS da PT para Aion 2</title>
+<meta name="description" content="Overlay grátis para Aion 2 que mostra em tempo real o DPS, a cura e o dano recebido de cada membro da PT. Só lê o tráfego de rede, não mexe no jogo.">
+<meta name="theme-color" content="#0b0e13">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AetherMeter — DPS da PT para Aion 2">
+<meta property="og:description" content="DPS, cura e tank da PT em tempo real, vida do chefe, tempo de DG e skills de cada jogador. Grátis, para Windows 10/11.">
+<meta property="og:image" content="https://bravizin.github.io/aethermeter/img/og.png">
+<meta property="og:url" content="https://bravizin.github.io/aethermeter/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0e13;
+    --bg-2: #10141b;
+    --card: #151922;
+    --card-2: #1b202b;
+    --line: #232937;
+    --text: #eceef1;
+    --dim: #a3acb7;
+    --faint: #6b7480;
+    --gold: #f2b84b;
+    --aether: #7fd4ff;
+    --good: #5bd38a;
+    --radius: 16px;
+    --max: 1120px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 "Inter", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: var(--aether); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  img { max-width: 100%; display: block; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+  /* nav */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(11, 14, 19, .82);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; color: var(--text); }
+  .brand:hover { text-decoration: none; }
+  .brand img { width: 32px; height: 32px; border-radius: 8px; }
+  nav .links { display: flex; gap: 22px; margin-left: auto; }
+  nav .links a { color: var(--dim); font-weight: 500; font-size: 15px; }
+  nav .links a:hover { color: var(--text); text-decoration: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 20px; border-radius: 12px;
+    font-weight: 700; font-size: 15px; border: 1px solid transparent;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s;
+  }
+  .btn:hover { text-decoration: none; transform: translateY(-1px); }
+  .btn-gold { background: var(--gold); color: #1a1406; box-shadow: 0 8px 30px -8px rgba(242,184,75,.55); }
+  .btn-gold:hover { box-shadow: 0 12px 36px -8px rgba(242,184,75,.7); }
+  .btn-ghost { border-color: var(--line); color: var(--text); background: var(--card); }
+  .btn-sm { padding: 8px 14px; font-size: 14px; border-radius: 10px; }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+
+  /* hero */
+  .hero { position: relative; padding: 72px 0 56px; }
+  .hero::before {
+    content: ""; position: absolute; inset: -200px 0 auto 0; height: 720px; z-index: -1;
+    background:
+      radial-gradient(600px 380px at 78% 30%, rgba(94, 70, 200, .35), transparent 70%),
+      radial-gradient(500px 300px at 15% 10%, rgba(127, 212, 255, .10), transparent 70%);
+  }
+  .hero .wrap { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
+  .eyebrow {
+    display: inline-flex; gap: 8px; align-items: center;
+    padding: 6px 12px; border-radius: 999px;
+    background: rgba(127,212,255,.08); border: 1px solid rgba(127,212,255,.25);
+    color: var(--aether); font-size: 13px; font-weight: 600;
+  }
+  h1 { font-size: clamp(36px, 5vw, 56px); line-height: 1.08; letter-spacing: -.02em; margin: 18px 0 16px; font-weight: 800; }
+  h1 .hl { color: var(--gold); }
+  .lead { color: var(--dim); font-size: 18px; max-width: 34em; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .dlmeta { margin-top: 14px; color: var(--faint); font-size: 13px; }
+  .dlmeta code { font-size: 11px; color: var(--faint); word-break: break-all; }
+
+  .shot { display: flex; gap: 12px; align-items: flex-start; justify-content: center; }
+  .shot .main { width: 310px; flex: none; filter: drop-shadow(0 30px 60px rgba(0,0,0,.55)); }
+  .shot .panel { width: 210px; flex: none; margin-top: 150px; filter: drop-shadow(0 24px 50px rgba(0,0,0,.6)); }
+
+  /* sections */
+  section { padding: 72px 0; }
+  .sec-title { font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -.01em; margin: 0 0 10px; font-weight: 800; }
+  .sec-sub { color: var(--dim); margin: 0 0 36px; max-width: 42em; }
+
+  /* tabs demo */
+  .tabs-demo { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  .tabbar { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tabbar button {
+    font: inherit; font-weight: 600; font-size: 14px; cursor: pointer;
+    padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card); color: var(--dim); display: inline-flex; align-items: center; gap: 8px;
+  }
+  .tabbar button[aria-selected="true"] { color: var(--gold); border-color: rgba(242,184,75,.45); background: #241f12; }
+  .tabbar svg { width: 16px; height: 16px; }
+  .tabtext h3 { margin: 0 0 8px; font-size: 20px; }
+  .tabtext p { margin: 0; color: var(--dim); }
+  .tabimg { display: flex; justify-content: center; min-height: 420px; align-items: flex-start; }
+  .tabimg img { width: 380px; filter: drop-shadow(0 24px 50px rgba(0,0,0,.5)); }
+
+  /* features */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card {
+    background: linear-gradient(180deg, var(--card), var(--bg-2));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px;
+  }
+  .card .ic {
+    width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+    background: rgba(242,184,75,.1); color: var(--gold); margin-bottom: 14px;
+  }
+  .card .ic.blue { background: rgba(127,212,255,.1); color: var(--aether); }
+  .card .ic svg { width: 22px; height: 22px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--dim); font-size: 15px; }
+
+  /* steps */
+  .steps { counter-reset: s; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .step { position: relative; padding: 22px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); }
+  .step::before {
+    counter-increment: s; content: counter(s);
+    display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--gold); color: #1a1406; font-weight: 800; margin-bottom: 12px;
+  }
+  .step h3 { margin: 0 0 6px; font-size: 16px; }
+  .step p { margin: 0; color: var(--dim); font-size: 14.5px; }
+  .note {
+    margin-top: 18px; padding: 14px 18px; border-radius: 12px;
+    background: rgba(127,212,255,.06); border: 1px solid rgba(127,212,255,.2); color: var(--dim); font-size: 14.5px;
+  }
+  .note b { color: var(--text); }
+
+  /* hotkeys */
+  .keys { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 28px; }
+  .key { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .key span { color: var(--dim); }
+  kbd {
+    font: 600 13px/1 "Inter", system-ui, sans-serif; color: var(--text);
+    padding: 6px 8px; border-radius: 7px; background: var(--card-2);
+    border: 1px solid var(--line); border-bottom-width: 3px; white-space: nowrap;
+  }
+
+  /* faq */
+  details { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 0 18px; margin-bottom: 10px; }
+  summary { cursor: pointer; padding: 16px 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--faint); font-size: 20px; line-height: 1; }
+  details[open] summary::after { content: "–"; }
+  details p { margin: 0 0 16px; color: var(--dim); }
+
+  /* final cta */
+  .final {
+    text-align: center; padding: 56px 24px; border-radius: 24px;
+    background: radial-gradient(500px 220px at 50% 0%, rgba(94,70,200,.35), transparent 70%), var(--bg-2);
+    border: 1px solid var(--line);
+  }
+  .final img { width: 72px; height: 72px; margin: 0 auto 16px; border-radius: 16px; }
+
+  footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--faint); font-size: 13.5px; }
+  footer p { margin: 6px 0; }
+
+  @media (max-width: 900px) {
+    .hero .wrap, .tabs-demo { grid-template-columns: 1fr; }
+    .shot { margin-top: 12px; }
+    .shot .panel { display: none; }
+    .grid { grid-template-columns: 1fr 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    nav .links { display: none; }
+    nav .wrap { justify-content: space-between; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 16px; }
+    .grid, .steps, .keys { grid-template-columns: 1fr; }
+    .shot .main, .tabimg img { width: 100%; max-width: 380px; }
+    .tabimg { min-height: 0; }
+    .hero { padding-top: 48px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#"><img src="img/favicon-32.png" alt="">AetherMeter</a>
+    <div class="links">
+      <a href="#recursos">Recursos</a>
+      <a href="#instalar">Instalar</a>
+      <a href="#atalhos">Atalhos</a>
+      <a href="#faq">Dúvidas</a>
+    </div>
+    <a class="btn btn-gold btn-sm dl-link" href="downloads/AetherMeter-0.2.2.zip" download>Baixar</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Aion 2 · Windows 10/11 · grátis</span>
+      <h1>O DPS da sua PT, <span class="hl">em tempo real</span>, por cima do jogo.</h1>
+      <p class="lead">O AetherMeter mostra quanto cada um está batendo, curando e tankando, junto com a vida do chefe e o tempo de DG. Ele só lê o tráfego de rede e não mexe no jogo.</p>
+      <div class="cta">
+        <a class="btn btn-gold dl-link" href="downloads/AetherMeter-0.2.2.zip" download>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
+          Baixar AetherMeter 0.2.2
+        </a>
+        <a class="btn btn-ghost" href="#instalar">Como instalar</a>
+      </div>
+      <p class="dlmeta">ZIP · 3 MB · o próprio .exe é o instalador, sem precisar de administrador<br>
+        SHA-256: <code>17b6c90bc5d4eb1b6ce2aa462d343e147411f918dabb99fcf682973f64d233dd</code></p>
+    </div>
+    <div class="shot">
+      <img class="main" src="img/dps_main.png" width="310" alt="Overlay do AetherMeter mostrando o DPS de seis jogadores contra um chefe">
+      <img class="panel" src="img/dps_panel.png" width="210" alt="Painel de skills de um jogador">
+    </div>
+  </div>
+</header>
+
+<section id="recursos">
+  <div class="wrap">
+    <div class="tabs-demo">
+      <div>
+        <h2 class="sec-title">Três abas: dano, cura e tank</h2>
+        <p class="sec-sub">Clique nos ícones no topo do overlay para trocar de aba. Elas continuam clicáveis mesmo com o overlay travado.</p>
+        <div class="tabbar" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="dps">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l11 11M20 4 9 15M14 18l4-4M10 18l-4-4M5 19l2-2M19 19l-2-2"/></svg>Dano
+          </button>
+          <button role="tab" aria-selected="false" data-tab="heal">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.3-9.4C1.4 8 3.6 4.5 7.1 4.5c2 0 3.6 1.1 4.9 2.8 1.3-1.7 2.9-2.8 4.9-2.8 3.5 0 5.7 3.5 4.4 7.1C19.5 16.4 12 21 12 21Z"/></svg>Cura
+          </button>
+          <button role="tab" aria-selected="false" data-tab="tank">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 4.5 5.5V11c0 4.6 3.1 8.4 7.5 10 4.4-1.6 7.5-5.4 7.5-10V5.5L12 3Z"/></svg>Tank
+          </button>
+        </div>
+        <div class="tabtext" id="tabtext">
+          <h3>Quem está batendo mais</h3>
+          <p>O DPS de cada jogador, com o total, o crítico e a fatia da PT. Por padrão conta só o dano no chefe, como todo mundo compara; dá pra trocar para todo o dano da luta.</p>
+        </div>
+      </div>
+      <div class="tabimg"><img id="tabimg" src="img/dps_main.png" width="380" alt="Aba de dano"></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2 class="sec-title">Tudo o que a PT precisa ver</h2>
+    <p class="sec-sub">Feito para ficar no canto da tela sem atrapalhar.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="9" width="18" height="6" rx="3"/><path d="M7 12h6"/></svg></div>
+        <h3>Vida do chefe</h3>
+        <p>Número cheio e porcentagem, tipo <b>1.950.000 / 3.200.000 · 60,9%</b>.</p>
+      </div>
+      <div class="card">
+        <div class="ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg></div>
+        <h3>Tempo de DG</h3>
+        <p>Conta desde a entrada na DG e para ao matar o chefe ou sair.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="8" height="16" rx="2"/><rect x="13" y="4" width="8" height="10" rx="2"/></svg></div>
+        <h3>Skills de cada jogador</h3>
+        <p>Clique em alguém para abrir um painel ao lado com dano, golpes e crítico de cada skill.</p>
+      </div>
+      <div class="card">
+        <div class="ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg></div>
+        <h3>Ícones das classes</h3>
+        <p>Cada jogador com a cor e o símbolo da classe, pra bater o olho e saber quem é quem.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .8 3.2 2.6 3.5 5.2"/></svg></div>
+        <h3>Só a sua PT, ou só você</h3>
+        <p>Filtra quem está em volta. Solo, ele descobre qual jogador é você e lembra o nome do personagem.</p>
+      </div>
+      <div class="card">
+        <div class="ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/><path d="M12 3h9v9M21 3l-9 9"/></svg></div>
+        <h3>Resumo pro Discord</h3>
+        <p><kbd>Ctrl+Alt+C</kbd> copia o ranking da luta formatado. É só colar no canal da guild.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/><path d="M17 3h4v4"/></svg></div>
+        <h3>Lutas anteriores</h3>
+        <p>Role a rodinha do mouse sobre o overlay para rever as últimas 20 lutas.</p>
+      </div>
+      <div class="card">
+        <div class="ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12l4 4L19 6"/></svg></div>
+        <h3>Clique atravessa</h3>
+        <p>Travado, o overlay deixa o clique passar direto pro jogo. Opacidade e tamanho ajustáveis.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 19h16"/></svg></div>
+        <h3>Instala sozinho</h3>
+        <p>Um único .exe: cria os atalhos, aparece em Apps e oferece instalar o Npcap se faltar.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="instalar">
+  <div class="wrap">
+    <h2 class="sec-title">Instalar em 2 minutos</h2>
+    <p class="sec-sub">Não precisa de administrador nem de nenhum runtime.</p>
+    <div class="steps">
+      <div class="step">
+        <h3>Baixe e extraia</h3>
+        <p>Baixe o <a class="dl-link" href="downloads/AetherMeter-0.2.2.zip" download>ZIP</a>, extraia e abra o <b>AetherMeter.exe</b>.</p>
+      </div>
+      <div class="step">
+        <h3>Clique em “Sim”</h3>
+        <p>Ele se instala e cria atalhos na Área de Trabalho e no Menu Iniciar.</p>
+      </div>
+      <div class="step">
+        <h3>Instale o Npcap</h3>
+        <p>Se pedir, clique em “Sim”: abre o instalador oficial do Npcap. Pode seguir com as opções padrão.</p>
+      </div>
+      <div class="step">
+        <h3>Jogue em janela sem bordas</h3>
+        <p>Deixe o Aion 2 em <b>janela sem bordas</b>. A bolinha verde no overlay indica que achou o jogo.</p>
+      </div>
+    </div>
+    <p class="note"><b>“O Windows protegeu o computador”?</b> O aviso aparece porque o programa não tem assinatura digital paga. Clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>.<br>
+      Pra testar sem o jogo, abra o atalho <b>AetherMeter (demonstração)</b> no Menu Iniciar.</p>
+  </div>
+</section>
+
+<section id="atalhos">
+  <div class="wrap">
+    <h2 class="sec-title">Atalhos</h2>
+    <p class="sec-sub">Nenhum usa Shift, pra não atrapalhar o dash. Dá pra trocar qualquer um em <b>Menu → Ferramentas → Editar atalhos</b>.</p>
+    <div class="keys">
+      <div class="key"><span>Travar / destravar o overlay</span><kbd>Ctrl+Alt+L</kbd></div>
+      <div class="key"><span>Trocar de aba (dano → cura → tank)</span><kbd>Ctrl+Alt+T</kbd></div>
+      <div class="key"><span>Zerar o medidor</span><kbd>Ctrl+Alt+R</kbd></div>
+      <div class="key"><span>Copiar resumo pro Discord</span><kbd>Ctrl+Alt+C</kbd></div>
+      <div class="key"><span>Dano: só no chefe / tudo da luta</span><kbd>Ctrl+Alt+M</kbd></div>
+      <div class="key"><span>Mostrar só a minha PT</span><kbd>Ctrl+Alt+P</kbd></div>
+      <div class="key"><span>Mostrar / esconder</span><kbd>Ctrl+Alt+H</kbd></div>
+      <div class="key"><span>Menu (opacidade, tamanho, diagnóstico)</span><kbd>botão direito no topo</kbd></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2 class="sec-title" style="margin-bottom:24px">Dúvidas</h2>
+    <details>
+      <summary>Dá ban?</summary>
+      <p>Ninguém pode garantir isso. O AetherMeter só lê os pacotes que chegam no seu PC, do mesmo jeito que o Wireshark: não injeta código, não lê a memória do jogo e não envia nada pra lugar nenhum. Mesmo assim, é uma ferramenta de terceiros que a NCSoft não aprovou. Use por sua conta e risco.</p>
+    </details>
+    <details>
+      <summary>O que é o Npcap e por que precisa dele?</summary>
+      <p>É o driver gratuito de captura de rede usado pelo Wireshark. É por ele que o AetherMeter enxerga o tráfego do jogo. O instalador oficial vem de npcap.com.</p>
+    </details>
+    <details>
+      <summary>O overlay não aparece por cima do jogo</summary>
+      <p>Em tela cheia exclusiva o Windows não deixa nada ficar por cima. Mude o Aion 2 para <b>janela sem bordas</b> (borderless) nas opções de vídeo.</p>
+    </details>
+    <details>
+      <summary>Por que aparece “Gladiador #123” em vez do nome?</summary>
+      <p>O servidor só manda os nomes quando alguém teleporta ou entra numa DG. Em PT os nomes vêm junto com os dados da party. Solo, o AetherMeter descobre qual jogador é você pelos tempos de recarga das suas skills e guarda o nome do seu personagem pra próxima vez.</p>
+    </details>
+    <details>
+      <summary>Funciona com ExitLag, GearUP e afins?</summary>
+      <p>Deve funcionar. Ele procura a conexão do jogo em todos os adaptadores de rede, inclusive os de VPN e loopback que esses programas usam. Se não achar, o <b>Menu → Ferramentas → Diagnóstico</b> mostra o que ele está vendo.</p>
+    </details>
+    <details>
+      <summary>Depois de um patch parou de funcionar</summary>
+      <p>Patches podem mudar o formato dos pacotes. Ative <b>Menu → Ferramentas → Gravar sessão</b>, lute um pouco e mande o arquivo <code>.pmrec</code> da pasta de logs. Com ele dá pra corrigir sem precisar do jogo.</p>
+    </details>
+    <details>
+      <summary>Como desinstalar?</summary>
+      <p>Em <b>Configurações → Apps → AetherMeter</b>, ou pelo atalho <b>Desinstalar AetherMeter</b> no Menu Iniciar. O Npcap continua instalado; se quiser, remova ele também em Apps.</p>
+    </details>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="final">
+      <img src="img/icon-512.png" width="72" height="72" alt="">
+      <h2 class="sec-title">Bora medir esse DPS</h2>
+      <p class="sec-sub" style="margin: 0 auto 24px">Grátis, leve e sem anúncio.</p>
+      <a class="btn btn-gold dl-link" href="downloads/AetherMeter-0.2.2.zip" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
+        Baixar AetherMeter 0.2.2
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>AetherMeter é um projeto da comunidade, sem afiliação com a NCSoft. Aion é marca da NCSoft. Os ícones são originais e não usam arte do jogo.</p>
+    <p>Código aberto sob GPL-3.0<span id="repo-link"></span>. O formato dos pacotes e as tabelas de dados vêm do <a href="https://github.com/Kuroukihime/AIon2-Dps-Meter">RATmeter</a>.</p>
+  </div>
+</footer>
+
+<script>
+  // tabs
+  const tabs = {
+    dps:  { img: "img/dps_main.png",  alt: "Aba de dano",
+            h: "Quem está batendo mais",
+            p: "O DPS de cada jogador, com o total, o crítico e a fatia da PT. Por padrão conta só o dano no chefe, como todo mundo compara; dá pra trocar para todo o dano da luta." },
+    heal: { img: "img/heal_main.png", alt: "Aba de cura",
+            h: "Quem está segurando a PT",
+            p: "Cura por segundo e total curado de cada healer, contando as curas do Clérigo, do Chanter e do Elementalista." },
+    tank: { img: "img/tank_main.png", alt: "Aba de tank",
+            h: "Quem está tomando a porrada",
+            p: "Dano recebido por segundo, o maior golpe que cada um levou e quantas vezes morreu. Clique num jogador pra ver de qual monstro veio o dano." }
+  };
+  document.querySelectorAll(".tabbar button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tabbar button").forEach(b => b.setAttribute("aria-selected", b === btn));
+      const t = tabs[btn.dataset.tab];
+      const img = document.getElementById("tabimg");
+      img.src = t.img; img.alt = t.alt;
+      document.getElementById("tabtext").innerHTML = "<h3>" + t.h + "</h3><p>" + t.p + "</p>";
+    });
+  });
+
+  // on GitHub Pages, link the repository automatically (usuario.github.io/repositorio)
+  (function () {
+    const host = location.hostname;
+    if (!host.endsWith(".github.io")) return;
+    const user = host.split(".")[0];
+    const repo = location.pathname.split("/").filter(Boolean)[0] || host;
+    const url = "https://github.com/" + user + "/" + repo;
+    document.getElementById("repo-link").innerHTML = ' — <a href="' + url + '">código no GitHub</a>';
+  })();
+</script>
+</body>
+</html>
