@@ -10,7 +10,7 @@ O AetherMeter **só lê** o tráfego de rede que o jogo recebe, via Npcap (o mes
 
 ## Instalação (usuário)
 
-1. Extraia o `AetherMeter-0.2.2.zip` e abra o `AetherMeter.exe`.
+1. Extraia o `AetherMeter-1.0.0.zip` e abra o `AetherMeter.exe`.
 2. Clique em **Sim** para instalar. Não pede administrador. O programa:
    - vai para `%LOCALAPPDATA%\Programs\AetherMeter`;
    - cria atalhos na Área de Trabalho e no Menu Iniciar (inclusive "demonstração" e "desinstalar");
@@ -25,6 +25,8 @@ Para atualizar, abra o `.exe` da versão nova e escolha **Sim**. Para usar sem i
 Para testar sem o jogo, use o atalho **AetherMeter (demonstração)** ou rode `AetherMeter.exe -demo`. Ele simula uma luta de chefe com dano, cura e tank.
 
 ## O overlay
+
+O fundo é transparente: o cabeçalho fica num cartão arredondado e cada jogador num cartão quase transparente, então o jogo continua aparecendo por trás. As partes transparentes deixam o clique passar.
 
 - **Abas no topo:** ⚔ dano (DPS), ♥ cura (HPS) e 🛡 dano recebido (tank). Elas continuam clicáveis mesmo com o overlay travado.
 - **Vida do chefe:** número cheio com percentual, por exemplo `1.950.000 / 3.200.000 · 60,9%`.
@@ -51,6 +53,8 @@ Para trocar um atalho, use **Menu → Ferramentas → Editar atalhos**. Ele abre
 ### Jogando solo
 
 O servidor só manda os nomes dos personagens ao teleportar ou entrar numa DG. Para saber qual jogador é você mesmo assim, o AetherMeter cruza o dano de cada um com os cooldowns das suas próprias skills, que só o seu cliente recebe. Depois de 3 ou 4 skills, ele já sabe quem é você e lembra o nome do seu personagem nas próximas vezes.
+
+Pra o seu personagem aparecer com o nome desde o começo, use **botão direito → Nome do meu personagem…** e digite o nome uma vez. Quando o servidor mandar o nome de verdade (no teleporte ou ao entrar numa DG), ele passa a valer.
 
 Com **"Mostrar só a minha PT"** ligado:
 

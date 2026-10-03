@@ -26,32 +26,66 @@ func clamp01(v float64) float64 {
 	return v
 }
 
+// blend composites colour c with opacity a over pixel i ("source over").
+// Pixels are straight (non-premultiplied) ARGB; a fully transparent pixel is 0.
 func (r *Raster) blend(i int, c uint32, a float64) {
 	if a <= 0 {
 		return
 	}
-	if a >= 1 {
-		r.Pix[i] = 0xFF000000 | c
-		return
+	if a > 1 {
+		a = 1
 	}
 	d := r.Pix[i]
-	mixc := func(s uint) uint32 {
+	da := float64(d>>24) / 255
+	oa := a + da*(1-a)
+	if oa <= 0 {
+		return
+	}
+	ch := func(s uint) uint32 {
 		sv := float64((c >> s) & 0xFF)
 		dv := float64((d >> s) & 0xFF)
-		return uint32(sv*a+dv*(1-a)+0.5) & 0xFF
+		return uint32((sv*a+dv*da*(1-a))/oa+0.5) & 0xFF
 	}
-	r.Pix[i] = 0xFF000000 | mixc(16)<<16 | mixc(8)<<8 | mixc(0)
+	r.Pix[i] = uint32(oa*255+0.5)<<24 | ch(16)<<16 | ch(8)<<8 | ch(0)
 }
 
-// Fill paints an axis-aligned rectangle (integer pixels, opaque).
-func (r *Raster) Fill(x0, y0, x1, y1 int, c uint32) {
+// Blend is the exported per-pixel composite (used by text renderers).
+func (r *Raster) Blend(x, y int, c uint32, a float64) {
+	if x < 0 || y < 0 || x >= r.W || y >= r.H {
+		return
+	}
+	r.blend(y*r.W+x, c, a)
+}
+
+// Clear makes the whole buffer fully transparent.
+func (r *Raster) Clear() {
+	for i := range r.Pix {
+		r.Pix[i] = 0
+	}
+}
+
+// Fill paints an axis-aligned rectangle (integer pixels) with opacity a.
+func (r *Raster) Fill(x0, y0, x1, y1 int, c uint32, a float64) {
 	x0, y0 = max(x0, 0), max(y0, 0)
 	x1, y1 = min(x1, r.W), min(y1, r.H)
 	for y := y0; y < y1; y++ {
-		row := r.Pix[y*r.W:]
 		for x := x0; x < x1; x++ {
-			row[x] = 0xFF000000 | c
+			r.blend(y*r.W+x, c, a)
 		}
+	}
+}
+
+// Premultiplied returns the buffer as premultiplied BGRA words, the format
+// UpdateLayeredWindow expects.
+func (r *Raster) Premultiplied(dst []uint32) {
+	for i, p := range r.Pix {
+		a := p >> 24
+		if a == 0 {
+			dst[i] = 0
+			continue
+		}
+		m := func(s uint) uint32 { return ((p>>s)&0xFF*a + 127) / 255 }
+		dst[i] = a<<24 | m(16)<<16 | m(8)<<8 | m(0)
 	}
 }
 

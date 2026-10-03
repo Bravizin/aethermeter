@@ -460,6 +460,19 @@ func (t *Tracker) applyRememberedName(p *Player) {
 	p.Name = t.rememberedName
 }
 
+// SetSelfName lets the user type their character's name (used until the
+// server sends it on teleport / dungeon entry).
+func (t *Tracker) SetSelfName(name string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.rememberedName, t.rememberedClass = name, 0
+	if t.selfID != 0 {
+		if p := t.players[t.selfID]; p != nil && !p.Identified {
+			p.Name = name
+		}
+	}
+}
+
 // Remember seeds the name/class of your character from a previous session.
 func (t *Tracker) Remember(name string, classID int) {
 	t.mu.Lock()

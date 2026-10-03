@@ -47,6 +47,7 @@ const (
 	cmdTabDps
 	cmdTabHeal
 	cmdTabTank
+	cmdSelfName
 	cmdOpacityBase = 200 // +percent
 	cmdScaleBase   = 300 // +percent
 	cmdRowsBase    = 400 // +rows
@@ -67,9 +68,14 @@ type Options struct {
 type window struct {
 	hwnd     uintptr
 	w, h     int
-	dc, bmp  uintptr
+	dc, bmp  uintptr // output DIB (premultiplied ARGB) for UpdateLayeredWindow
 	oldBmp   uintptr
 	pix      []uint32
+	maskDC   uintptr // scratch DIB GDI draws text into
+	maskBmp  uintptr
+	maskOld  uintptr
+	maskPix  []uint32
+	raster   []uint32 // straight-alpha drawing buffer
 	bufW     int
 	bufH     int
 	tracking bool
@@ -162,7 +168,6 @@ func Run(o Options) error {
 		return fmt.Errorf("CreateWindowEx panel: %v", err)
 	}
 	ov.header.hwnd, ov.body.hwnd, ov.panel.hwnd = hh, bh, ph
-	ov.applyOpacity()
 	ov.updateScale()
 	ov.registerHotkeys()
 	ov.refresh()
@@ -184,6 +189,14 @@ func Run(o Options) error {
 	}
 	ov.saveConfig()
 	return nil
+}
+
+// validate ends a (never needed) WM_PAINT: layered windows updated with
+// UpdateLayeredWindow are composed by the system.
+func validate(hwnd uintptr) {
+	var ps paintStruct
+	pBeginPaint.Call(hwnd, ptr(unsafe.Pointer(&ps)))
+	pEndPaint.Call(hwnd, ptr(unsafe.Pointer(&ps)))
 }
 
 func defProc(hwnd, umsg, wparam, lparam uintptr) uintptr {
@@ -208,7 +221,7 @@ func headerProc(hwnd, umsg, wparam, lparam uintptr) uintptr {
 		o.refresh()
 		return 0
 	case wmPaint:
-		o.paint(&o.header, paintHeader)
+		validate(hwnd)
 		return 0
 	case wmEraseBkgnd:
 		return 1
@@ -241,14 +254,14 @@ func headerProc(hwnd, umsg, wparam, lparam uintptr) uintptr {
 		}
 		if hover != o.view.HoverTab {
 			o.view.HoverTab = hover
-			pInvalidateRect.Call(hwnd, 0, 0)
+			o.repaintHeader()
 		}
 		return 0
 	case wmMouseLeave:
 		o.header.tracking = false
 		if o.view.HoverTab != -1 {
 			o.view.HoverTab = -1
-			pInvalidateRect.Call(hwnd, 0, 0)
+			o.repaintHeader()
 		}
 		return 0
 	case wmSetCursor:
@@ -305,7 +318,7 @@ func bodyProc(hwnd, umsg, wparam, lparam uintptr) uintptr {
 	}
 	switch umsg {
 	case wmPaint:
-		o.paint(&o.body, paintBody)
+		validate(hwnd)
 		return 0
 	case wmEraseBkgnd:
 		return 1
@@ -333,7 +346,7 @@ func panelProc(hwnd, umsg, wparam, lparam uintptr) uintptr {
 	}
 	switch umsg {
 	case wmPaint:
-		o.paint(&o.panel, paintPanel)
+		validate(hwnd)
 		return 0
 	case wmEraseBkgnd:
 		return 1
@@ -382,14 +395,13 @@ func (o *Overlay) updateScale() {
 
 func makeFont(h int, weight int) uintptr {
 	f, _, _ := pCreateFontW.Call(uintptr(int32(-h)), 0, 0, 0, uintptr(weight), 0, 0, 0,
-		1 /*DEFAULT_CHARSET*/, 0, 0, 5 /*CLEARTYPE_QUALITY*/, 0, ptr(unsafe.Pointer(u16p("Segoe UI"))))
+		1 /*DEFAULT_CHARSET*/, 0, 0, 4 /*ANTIALIASED_QUALITY: grey-scale coverage for the alpha mask*/, 0, ptr(unsafe.Pointer(u16p("Segoe UI"))))
 	return f
 }
 
 func (o *Overlay) applyOpacity() {
-	for _, h := range []uintptr{o.header.hwnd, o.body.hwnd, o.panel.hwnd} {
-		pSetLayeredWindowAttributes.Call(h, 0, uintptr(o.cfg.Opacity), lwaAlpha)
-	}
+	// opacity is applied per frame in render(); just redraw
+	o.refresh()
 }
 
 func (o *Overlay) placeBody() {
@@ -569,6 +581,15 @@ func (o *Overlay) command(id int) {
 		o.setMetric(combat.MetricHeal)
 	case id == cmdTabTank:
 		o.setMetric(combat.MetricTaken)
+	case id == cmdSelfName:
+		name, ok := askText(o.header.hwnd, AppName, "Nome do seu personagem (aparece antes do jogo mandar, ex.: antes do teleporte):", o.cfg.SelfName)
+		name = strings.TrimSpace(name)
+		if ok && name != "" {
+			o.cfg.SelfName, o.cfg.SelfClass = name, 0
+			o.eng.Tracker.SetSelfName(name)
+			o.saveConfig()
+			o.flash("Personagem: " + name)
+		}
 	case id == cmdModeMain:
 		o.cfg.Mode = int(combat.ViewMainTarget)
 		o.flash("Dano: só no alvo principal / chefe")
@@ -722,6 +743,11 @@ func (o *Overlay) showMenu() {
 	add(m, chk(o.cfg.Mode == int(combat.ViewMainTarget)), cmdModeMain, "Dano: só no chefe / alvo principal"+o.hk("mode"))
 	add(m, chk(o.cfg.Mode == int(combat.ViewAll)), cmdModeAll, "Dano: tudo da luta (inclui mobs)")
 	add(m, chk(o.cfg.PartyOnly), cmdPartyOnly, "Mostrar só a minha PT"+o.hk("party"))
+	selfLabel := "Nome do meu personagem…"
+	if o.cfg.SelfName != "" {
+		selfLabel = "Meu personagem: " + o.cfg.SelfName + "…"
+	}
+	add(m, 0, cmdSelfName, selfLabel)
 	sep(m)
 	add(m, gray(o.view.Back < o.view.Snap.History-1), cmdPrev, "« Luta anterior\t(roda do mouse)")
 	add(m, gray(o.view.Back > 0), cmdNext, "Luta seguinte »")
@@ -822,66 +848,58 @@ func (o *Overlay) refresh() {
 	}
 
 	w := o.px(float64(o.cfg.Width))
-	o.resize(&o.header, w, v.HeaderHeight(), regionTop)
-	o.resize(&o.body, w, v.BodyHeight(), regionBottom)
+	o.render(&o.header, w, v.HeaderHeight(), paintHeader)
+	o.render(&o.body, w, v.BodyHeight(), paintBody)
 	if v.PanelOpen() {
-		o.resize(&o.panel, o.px(float64(o.cfg.Width)), v.PanelHeight(), regionAll)
+		o.render(&o.panel, v.PanelWidth(), v.PanelHeight(), paintPanel)
 		o.placeBody() // position the panel before showing it
 		if !o.hidden && !o.panelShown {
 			pShowWindow.Call(o.panel.hwnd, swShowNoActive)
 			o.panelShown = true
 		}
-		pInvalidateRect.Call(o.panel.hwnd, 0, 0)
 	} else if o.panelShown {
 		pShowWindow.Call(o.panel.hwnd, swHide)
 		o.panelShown = false
 	}
 	o.placeBody()
-	pInvalidateRect.Call(o.header.hwnd, 0, 0)
-	pInvalidateRect.Call(o.body.hwnd, 0, 0)
 }
 
-const (
-	regionTop = iota
-	regionBottom
-	regionAll
-)
-
-func (o *Overlay) resize(win *window, w, h int, shape int) {
-	if w == win.w && h == win.h {
-		return
-	}
-	win.w, win.h = w, h
-	pSetWindowPos.Call(win.hwnd, ^uintptr(0) /*HWND_TOPMOST*/, 0, 0, uintptr(w), uintptr(h), swpNoMove|swpNoActivate)
-	// rounded outer corners: header rounds the top, body rounds the bottom
-	r := o.px(12)
-	var rgn uintptr
-	switch shape {
-	case regionTop:
-		rgn, _, _ = pCreateRoundRectRgn.Call(0, 0, uintptr(w+1), uintptr(h+r+1), uintptr(r), uintptr(r))
-	case regionBottom:
-		rgn, _, _ = pCreateRoundRectRgn.Call(0, uintptr(int32(-r)), uintptr(w+1), uintptr(h+1), uintptr(r), uintptr(r))
-	default:
-		rgn, _, _ = pCreateRoundRectRgn.Call(0, 0, uintptr(w+1), uintptr(h+1), uintptr(r), uintptr(r))
-	}
-	pSetWindowRgn.Call(win.hwnd, rgn, 1)
+// repaintHeader redraws only the header (tab hover feedback).
+func (o *Overlay) repaintHeader() {
+	o.render(&o.header, o.header.w, o.header.h, paintHeader)
 }
 
-// gdiSurface renders shapes with package ui and text with GDI.
+// gdiSurface renders shapes with package ui; text is rasterised by GDI into a
+// scratch mask (white on black, grey-scale anti-aliasing) and then blended in
+// as coverage, which keeps the per-pixel alpha of the layered window intact.
 type gdiSurface struct {
 	r     *ui.Raster
-	dc    uintptr
+	win   *window
 	fonts map[ui.Font]uintptr
 }
 
 func (s *gdiSurface) Raster() *ui.Raster { return s.r }
-func (s *gdiSurface) Flush()             { pGdiFlush.Call() }
+func (s *gdiSurface) Flush()             {}
 
 func (s *gdiSurface) Text(str string, x0, y0, x1, y1 int, c uint32, f ui.Font, a ui.Align) {
 	if str == "" || x1 <= x0 {
 		return
 	}
-	pSelectObject.Call(s.dc, s.fonts[f])
+	w, h := s.r.W, s.r.H
+	cx0, cy0, cx1, cy1 := max(x0, 0), max(y0, 0), min(x1, w), min(y1, h)
+	if cx1 <= cx0 || cy1 <= cy0 {
+		return
+	}
+	m := s.win.maskPix
+	for y := cy0; y < cy1; y++ {
+		row := m[y*w : y*w+w]
+		for x := cx0; x < cx1; x++ {
+			row[x] = 0
+		}
+	}
+	dc := s.win.maskDC
+	pSelectObject.Call(dc, s.fonts[f])
+	pSetTextColor.Call(dc, 0xFFFFFF)
 	u, _ := syscall.UTF16FromString(str)
 	flags := uintptr(dtSingleLine | dtVCenter | dtNoPrefix | dtEndEllip)
 	switch a {
@@ -890,33 +908,59 @@ func (s *gdiSurface) Text(str string, x0, y0, x1, y1 int, c uint32, f ui.Font, a
 	case ui.Right:
 		flags |= dtRight
 	}
-	// 1px dark shadow keeps text readable over the bars and the game
-	pSetTextColor.Call(s.dc, 0)
-	sh := rect{int32(x0 + 1), int32(y0 + 1), int32(x1 + 1), int32(y1 + 1)}
-	pDrawTextW.Call(s.dc, ptr(unsafe.Pointer(&u[0])), uintptr(len(u)-1), ptr(unsafe.Pointer(&sh)), flags)
-	pSetTextColor.Call(s.dc, rgb(c))
-	r := rect{int32(x0), int32(y0), int32(x1), int32(y1)}
-	pDrawTextW.Call(s.dc, ptr(unsafe.Pointer(&u[0])), uintptr(len(u)-1), ptr(unsafe.Pointer(&r)), flags)
+	rc := rect{int32(x0), int32(y0), int32(x1), int32(y1)}
+	pDrawTextW.Call(dc, ptr(unsafe.Pointer(&u[0])), uintptr(len(u)-1), ptr(unsafe.Pointer(&rc)), flags)
+	pGdiFlush.Call()
+	cov := func(x, y int) float64 { return float64((m[y*w+x]>>8)&0xFF) / 255 }
+	// dark shadow first (1px down-right) so text reads over any background
+	for y := cy0; y < cy1; y++ {
+		for x := cx0; x < cx1; x++ {
+			if k := cov(x, y); k > 0 {
+				s.r.Blend(x+1, y+1, 0x000000, 0.85*k)
+			}
+		}
+	}
+	for y := cy0; y < cy1; y++ {
+		for x := cx0; x < cx1; x++ {
+			if k := cov(x, y); k > 0 {
+				s.r.Blend(x, y, c, k)
+			}
+		}
+	}
 }
 
-// ensureBuffer (re)creates the window's DIB back buffer.
-func (win *window) ensureBuffer(hdc uintptr, w, h int) bool {
+// newDIB creates a 32-bit top-down DIB section selected into a memory DC.
+func newDIB(w, h int) (dc, bmp, old uintptr, pix []uint32, ok bool) {
+	screen, _, _ := pGetDC.Call(0)
+	defer pReleaseDC.Call(0, screen)
+	bmi := bitmapInfo{Header: bitmapInfoHeader{Width: int32(w), Height: int32(-h), Planes: 1, BitCount: 32}}
+	bmi.Header.Size = uint32(unsafe.Sizeof(bmi.Header))
+	var bits uintptr
+	bmp, _, _ = pCreateDIBSection.Call(screen, ptr(unsafe.Pointer(&bmi)), 0, ptr(unsafe.Pointer(&bits)), 0, 0)
+	if bmp == 0 || bits == 0 {
+		return 0, 0, 0, nil, false
+	}
+	dc, _, _ = pCreateCompatibleDC.Call(screen)
+	old, _, _ = pSelectObject.Call(dc, bmp)
+	pSetBkMode.Call(dc, 1) // TRANSPARENT
+	return dc, bmp, old, unsafe.Slice((*uint32)(unsafe.Add(nil, bits)), w*h), true
+}
+
+// ensureBuffer (re)creates the window's output and text-mask buffers.
+func (win *window) ensureBuffer(w, h int) bool {
 	if win.dc != 0 && win.bufW == w && win.bufH == h {
 		return true
 	}
 	win.freeBuffer()
-	bmi := bitmapInfo{Header: bitmapInfoHeader{Width: int32(w), Height: int32(-h), Planes: 1, BitCount: 32}}
-	bmi.Header.Size = uint32(unsafe.Sizeof(bmi.Header))
-	var bits uintptr
-	bmp, _, _ := pCreateDIBSection.Call(hdc, ptr(unsafe.Pointer(&bmi)), 0, ptr(unsafe.Pointer(&bits)), 0, 0)
-	if bmp == 0 || bits == 0 {
+	var ok bool
+	if win.dc, win.bmp, win.oldBmp, win.pix, ok = newDIB(w, h); !ok {
 		return false
 	}
-	dc, _, _ := pCreateCompatibleDC.Call(hdc)
-	old, _, _ := pSelectObject.Call(dc, bmp)
-	pSetBkMode.Call(dc, 1) // TRANSPARENT
-	win.dc, win.bmp, win.oldBmp = dc, bmp, old
-	win.pix = unsafe.Slice((*uint32)(unsafe.Add(nil, bits)), w*h)
+	if win.maskDC, win.maskBmp, win.maskOld, win.maskPix, ok = newDIB(w, h); !ok {
+		win.freeBuffer()
+		return false
+	}
+	win.raster = make([]uint32, w*h)
 	win.bufW, win.bufH = w, h
 	return true
 }
@@ -928,6 +972,12 @@ func (win *window) freeBuffer() {
 		pDeleteObject.Call(win.bmp)
 		win.dc, win.bmp, win.pix = 0, 0, nil
 	}
+	if win.maskDC != 0 {
+		pSelectObject.Call(win.maskDC, win.maskOld)
+		pDeleteDC.Call(win.maskDC)
+		pDeleteObject.Call(win.maskBmp)
+		win.maskDC, win.maskBmp, win.maskPix = 0, 0, nil
+	}
 }
 
 const (
@@ -936,18 +986,15 @@ const (
 	paintPanel
 )
 
-func (o *Overlay) paint(win *window, which int) {
-	var ps paintStruct
-	hdc, _, _ := pBeginPaint.Call(win.hwnd, ptr(unsafe.Pointer(&ps)))
-	defer pEndPaint.Call(win.hwnd, ptr(unsafe.Pointer(&ps)))
-
-	var cr rect
-	pGetClientRect.Call(win.hwnd, ptr(unsafe.Pointer(&cr)))
-	w, h := int(cr.Right), int(cr.Bottom)
-	if w <= 0 || h <= 0 || !win.ensureBuffer(hdc, w, h) {
+// render draws one window with per-pixel transparency and pushes it to the
+// screen with UpdateLayeredWindow (fully transparent pixels let clicks through).
+func (o *Overlay) render(win *window, w, h int, which int) {
+	if w <= 0 || h <= 0 || !win.ensureBuffer(w, h) {
 		return
 	}
-	s := &gdiSurface{r: &ui.Raster{Pix: win.pix, W: w, H: h}, dc: win.dc, fonts: o.fonts}
+	win.w, win.h = w, h
+	r := &ui.Raster{Pix: win.raster, W: w, H: h}
+	s := &gdiSurface{r: r, win: win, fonts: o.fonts}
 	switch which {
 	case paintHeader:
 		ui.DrawHeader(s, &o.view, &o.hits)
@@ -956,6 +1003,12 @@ func (o *Overlay) paint(win *window, which int) {
 	default:
 		ui.DrawPanel(s, &o.view)
 	}
+	r.Premultiplied(win.pix)
 	pGdiFlush.Call()
-	pBitBlt.Call(hdc, 0, 0, uintptr(w), uintptr(h), win.dc, 0, 0, 0x00CC0020)
+
+	size := struct{ CX, CY int32 }{int32(w), int32(h)}
+	src := point{0, 0}
+	blend := [4]byte{0 /*AC_SRC_OVER*/, 0, byte(o.cfg.Opacity), 1 /*AC_SRC_ALPHA*/}
+	pUpdateLayeredWindow.Call(win.hwnd, 0, 0, ptr(unsafe.Pointer(&size)), win.dc,
+		ptr(unsafe.Pointer(&src)), 0, ptr(unsafe.Pointer(&blend)), 2 /*ULW_ALPHA*/)
 }

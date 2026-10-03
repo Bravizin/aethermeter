@@ -103,12 +103,14 @@ const (
 	lRowC    = 24
 	lPad     = 8
 	lCard    = 42
-	lGap     = 5
+	lGap     = 4
+	lTop     = 5 // transparent gap between the header and the first card
 	lSkill   = 28
 	lEmpty   = 54
 	lTab     = 30
 	lTabGap  = 4
-	lRadius  = 9
+	lRadius  = 10
+	lHdrRad  = 14
 	lBadge   = 30
 	lMaxSkil = 14
 )
@@ -150,8 +152,16 @@ func (v *View) BodyHeight() int {
 	if n == 0 {
 		return v.px(lEmpty)
 	}
-	return v.px(float64(lPad*2 + n*lCard + (n-1)*lGap))
+	return v.px(float64(lTop + n*lCard + (n-1)*lGap))
 }
+
+// Opacity of the floating pieces (the rest of the window is fully transparent).
+const (
+	aHeader = 0.86 // header card
+	aCard   = 0.40 // player card background ("quase transparente")
+	aFill   = 0.62 // class-coloured damage bar
+	aPanel  = 0.90 // skills panel
+)
 
 // ---- header -------------------------------------------------------------------
 
@@ -162,15 +172,15 @@ func DrawHeader(s Surface, v *View, h *Hits) {
 	r := s.Raster()
 	w := r.W
 	snap := v.Snap
-	r.Fill(0, 0, w, r.H, ColHeader)
-
+	r.Clear()
+	r.RoundRect(0, 0, float64(w), float64(r.H), v.pf(lHdrRad), ColHeader, aHeader)
 	// subtle aether line on top
-	r.RoundRect(v.pf(14), 0, float64(w)-v.pf(14), v.pf(2), v.pf(1), ColAether, 0.55)
+	r.RoundRect(v.pf(18), v.pf(1), float64(w)-v.pf(18), v.pf(3), v.pf(1), ColAether, 0.6)
 
 	// tabs
 	ty := v.px(4)
 	for i := 0; i < 3; i++ {
-		x := v.px(float64(lPad + i*(lTab+lTabGap)))
+		x := v.px(float64(lPad + 2 + i*(lTab+lTabGap)))
 		rc := Rect{x, ty, x + v.px(lTab), ty + v.px(lTab)}
 		h.Tabs[i] = rc
 		active := int(v.Metric) == i
@@ -193,7 +203,7 @@ func DrawHeader(s Surface, v *View, h *Hits) {
 
 	// title + timer
 	rowA := v.px(lRowA)
-	tx := v.px(float64(lPad + 3*(lTab+lTabGap) + 6))
+	tx := v.px(float64(lPad + 2 + 3*(lTab+lTabGap) + 6))
 	title := "AetherMeter"
 	if snap.TargetName != "" {
 		title = snap.TargetName
@@ -231,11 +241,11 @@ func DrawHeader(s Surface, v *View, h *Hits) {
 	if snap.TargetMaxHP > 0 {
 		x0, x1 := v.pf(lPad), float64(w)-v.pf(lPad)
 		bh := v.pf(lHp)
-		r.RoundRect(x0, float64(y), x1, float64(y)+bh, v.pf(6), ColHpTrack, 1)
+		r.RoundRect(x0, float64(y), x1, float64(y)+bh, v.pf(bh/v.Scale/2), ColHpTrack, 0.9)
 		frac := clamp01(float64(snap.TargetHP) / float64(snap.TargetMaxHP))
 		if frac > 0 {
 			fw := (x1 - x0) * frac
-			r.RoundRect(x0, float64(y), x0+fw, float64(y)+bh, v.pf(6), ColHp, 1)
+			r.RoundRect(x0, float64(y), x0+fw, float64(y)+bh, v.pf(bh/v.Scale/2), ColHp, 1)
 			r.RoundRect(x0+v.pf(2), float64(y)+v.pf(2), x0+fw-v.pf(2), float64(y)+v.pf(5), v.pf(1.5), ColHpHi, 0.35)
 		}
 		hpText := combat.Full(snap.TargetHP) + " / " + combat.Full(snap.TargetMaxHP) + "   ·   " + combat.Pct(frac, 1)
@@ -309,15 +319,15 @@ func (v *View) PanelHeight() int {
 	if v.Detail == 0 || r == nil {
 		return 0
 	}
-	n := max(1, min(len(r.Skills), lMaxSkil))
-	return v.px(float64(lPad*2 + lCard + lGap + n*(lSkill+3)))
+	n := max(1, min(len(r.Skills), pMax))
+	return v.px(float64(pPad*2 + pHead + pGap + 2 + n*(pSkill+pGap)))
 }
 
 // DrawPanel paints the skills side panel of the selected player.
 func DrawPanel(s Surface, v *View) {
 	r := s.Raster()
-	r.Fill(0, 0, r.W, r.H, ColBg)
-	r.RoundRect(v.pf(14), 0, float64(r.W)-v.pf(14), v.pf(2), v.pf(1), ColAether, 0.55)
+	r.Clear()
+	r.RoundRect(0, 0, float64(r.W), float64(r.H), v.pf(12), ColHeader, aPanel)
 	if row := v.detailRow(); row != nil {
 		drawDetail(s, v, row)
 	}
@@ -327,12 +337,13 @@ func DrawPanel(s Surface, v *View) {
 func DrawBody(s Surface, v *View, h *Hits) {
 	r := s.Raster()
 	w := r.W
-	r.Fill(0, 0, w, r.H, ColBg)
+	r.Clear()
 	h.Rows = h.Rows[:0]
 
 	rows := v.visibleRows()
 	if len(rows) == 0 {
-		s.Text(v.Status, v.px(lPad), 0, w-v.px(lPad), r.H, v.StatusCol, FontReg, Center)
+		r.RoundRect(0, v.pf(lTop), float64(w), float64(r.H), v.pf(lRadius), ColHeader, 0.78)
+		s.Text(v.Status, v.px(lPad), v.px(lTop), w-v.px(lPad), r.H, v.StatusCol, FontReg, Center)
 		return
 	}
 	var maxV int64
@@ -345,31 +356,31 @@ func DrawBody(s Surface, v *View, h *Hits) {
 	}
 
 	for i, row := range rows {
-		y0 := v.pf(float64(lPad + i*(lCard+lGap)))
+		y0 := v.pf(float64(lTop + i*(lCard+lGap)))
 		y1 := y0 + v.pf(lCard)
-		x0, x1 := v.pf(lPad), float64(w)-v.pf(lPad)
+		x0, x1 := v.pf(1), float64(w)-v.pf(1)
 		rad := v.pf(lRadius)
 		h.Rows = append(h.Rows, struct {
 			Rect
 			ID int
 		}{Rect{int(x0), int(y0), int(x1), int(y1)}, row.ID})
 
-		card := uint32(ColCard)
+		card, cardA := uint32(0x0C0F14), aCard
 		if row.ID == v.Detail { // the player whose skills are open on the side
-			r.RoundRect(x0-v.pf(2), y0-v.pf(2), x1+v.pf(2), y1+v.pf(2), rad+v.pf(2), ColAether, 0.9)
-			card = ColCardHi
+			r.RoundRect(x0-v.pf(1), y0-v.pf(1), x1+v.pf(1), y1+v.pf(1), rad+v.pf(1), ColAether, 0.95)
+			cardA = 0.7
 		}
-		r.RoundRect(x0, y0, x1, y1, rad, card, 1)
+		r.RoundRect(x0, y0, x1, y1, rad, card, cardA)
 		frac := 0.0
 		if maxV > 0 {
 			frac = float64(row.Damage) / float64(maxV)
 		}
 		if frac > 0 {
 			fw := (x1 - x0) * frac
-			fill := Mix(row.Color, ColBg, 0.58)
-			r.RoundRect(x0, y0, x0+fw, y1, rad, fill, 1)
+			fill := Mix(row.Color, 0x000000, 0.35)
+			r.RoundRect(x0, y0, x0+fw, y1, rad, fill, aFill)
 			// glossy top highlight
-			r.RoundRect(x0+v.pf(3), y0+v.pf(2), x0+fw-v.pf(3), y0+v.pf(lCard/2), rad-v.pf(3), 0xFFFFFF, 0.05)
+			r.RoundRect(x0+v.pf(3), y0+v.pf(2), x0+fw-v.pf(3), y0+v.pf(lCard/2), rad-v.pf(3), 0xFFFFFF, 0.06)
 		}
 		if row.IsSelf {
 			r.RoundRect(x0, y0, x0+v.pf(3), y1, v.pf(1.5), ColAccent, 1)
@@ -417,55 +428,67 @@ func DrawBody(s Surface, v *View, h *Hits) {
 	}
 }
 
+// compact side panel
+const (
+	pWidth = 290 // logical width of the skills panel
+	pPad   = 6
+	pHead  = 34
+	pSkill = 21
+	pGap   = 2
+	pMax   = 10
+	pBadge = 24
+)
+
+// PanelWidth in window pixels.
+func (v *View) PanelWidth() int { return v.px(pWidth) }
+
 func drawDetail(s Surface, v *View, row *combat.Row) {
 	r := s.Raster()
 	w := r.W
-	x0, x1 := v.pf(lPad), float64(w)-v.pf(lPad)
-	y0 := v.pf(lPad)
-	y1 := y0 + v.pf(lCard)
-	rad := v.pf(lRadius)
-	r.RoundRect(x0, y0, x1, y1, rad, Mix(row.Color, ColBg, 0.7), 1)
+	x0, x1 := v.pf(pPad), float64(w)-v.pf(pPad)
+	y0 := v.pf(pPad)
+	y1 := y0 + v.pf(pHead)
+	r.RoundRect(x0, y0, x1, y1, v.pf(9), Mix(row.Color, 0x000000, 0.45), 0.75)
 
-	bs := v.pf(lBadge)
-	bcx, bcy := x0+v.pf(7)+bs/2, (y0+y1)/2
+	bs := v.pf(pBadge)
+	bcx, bcy := x0+v.pf(5)+bs/2, (y0+y1)/2
 	r.Circle(bcx, bcy, bs/2, row.Color, 1)
 	if g := glyph.ClassGlyph(row.ClassID); g != "" {
-		gs := v.px(19)
+		gs := v.px(16)
 		r.Glyph(g, int(bcx)-gs/2, int(bcy)-gs/2, gs, ColGlyphOn, 0.92)
 	}
-	tx := int(x0 + v.pf(7) + bs + v.pf(9))
+	tx := int(x0 + v.pf(5) + bs + v.pf(7))
 	mid := int((y0 + y1) / 2)
-	s.Text(row.Name+"  ·  "+row.ClassName, tx, int(y0)+v.px(2), int(x1)-v.px(30), mid+v.px(1), ColText, FontBold, Left)
-	s.Text("×", int(x1)-v.px(28), int(y0), int(x1)-v.px(8), mid+v.px(2), ColDim, FontTitle, Right)
+	s.Text(row.Name, tx, int(y0)+v.px(1), int(x1)-v.px(24), mid+v.px(1), ColText, FontSmallBold, Left)
+	s.Text("×", int(x1)-v.px(22), int(y0), int(x1)-v.px(6), mid+v.px(2), ColDim, FontBold, Right)
 	stats := ""
 	switch v.Metric {
 	case combat.MetricDamage:
-		stats = fmt.Sprintf("%s total  ·  crit %s  ·  costas %s  ·  maior %s", combat.Short(float64(row.Damage)),
-			combat.Pct(row.CritRate, 0), combat.Pct(row.BackRate, 0), combat.Short(float64(row.MaxHit)))
+		stats = fmt.Sprintf("crit %s  ·  costas %s  ·  maior %s", combat.Pct(row.CritRate, 0), combat.Pct(row.BackRate, 0), combat.Short(float64(row.MaxHit)))
 	case combat.MetricHeal:
-		stats = fmt.Sprintf("%s curado  ·  maior cura %s", combat.Short(float64(row.Damage)), combat.Short(float64(row.MaxHit)))
+		stats = fmt.Sprintf("%s curado  ·  maior %s", combat.Short(float64(row.Damage)), combat.Short(float64(row.MaxHit)))
 	case combat.MetricTaken:
-		stats = fmt.Sprintf("%s recebido  ·  maior %s  ·  mortes %d", combat.Short(float64(row.Damage)), combat.Short(float64(row.MaxHit)), row.Deaths)
+		stats = fmt.Sprintf("maior %s  ·  mortes %d", combat.Short(float64(row.MaxHit)), row.Deaths)
 	}
-	s.Text(stats, tx, mid-v.px(1), int(x1)-v.px(10), int(y1)-v.px(3), ColDim, FontSmall, Left)
+	s.Text(stats, tx, mid-v.px(1), int(x1)-v.px(6), int(y1)-v.px(2), ColDim, FontSmall, Left)
 	s.Flush()
 
 	skills := row.Skills
-	if len(skills) > lMaxSkil {
-		skills = skills[:lMaxSkil]
+	if len(skills) > pMax {
+		skills = skills[:pMax]
 	}
 	var maxV int64
 	if len(skills) > 0 {
 		maxV = skills[0].Damage
 	}
-	sy := y1 + v.pf(lGap)
+	sy := y1 + v.pf(pGap+2)
 	for i, sk := range skills {
-		a0 := sy + float64(i)*v.pf(lSkill+3)
-		a1 := a0 + v.pf(lSkill)
-		r.RoundRect(x0, a0, x1, a1, v.pf(7), ColCard, 1)
+		a0 := sy + float64(i)*v.pf(pSkill+pGap)
+		a1 := a0 + v.pf(pSkill)
+		r.RoundRect(x0, a0, x1, a1, v.pf(7), 0x0C0F14, 0.45)
 		if maxV > 0 {
 			fw := (x1 - x0) * float64(sk.Damage) / float64(maxV)
-			r.RoundRect(x0, a0, x0+fw, a1, v.pf(7), Mix(row.Color, ColBg, 0.66), 1)
+			r.RoundRect(x0, a0, x0+fw, a1, v.pf(7), Mix(row.Color, 0x000000, 0.4), 0.6)
 		}
 		name := sk.Name
 		if sk.IsDot {
@@ -476,13 +499,13 @@ func drawDetail(s Surface, v *View, row *combat.Row) {
 		}
 		info := fmt.Sprintf("×%d", sk.Hits)
 		if v.Metric == combat.MetricDamage {
-			info += "  c" + combat.Pct(sk.CritRate, 0)
+			info = "c" + combat.Pct(sk.CritRate, 0)
 		}
-		rx := int(x1 - v.pf(10))
-		s.Text(name, int(x0+v.pf(10)), int(a0), rx-v.px(172), int(a1), ColText, FontSmallBold, Left)
-		s.Text(info, rx-v.px(172), int(a0), rx-v.px(100), int(a1), ColFaint, FontSmall, Right)
-		s.Text(combat.Short(float64(sk.Damage)), rx-v.px(96), int(a0), rx-v.px(44), int(a1), ColText, FontSmallBold, Right)
-		s.Text(combat.Pct(sk.Pct, 0), rx-v.px(42), int(a0), rx, int(a1), ColDim, FontSmall, Right)
+		rx := int(x1 - v.pf(7))
+		s.Text(name, int(x0+v.pf(7)), int(a0), rx-v.px(126), int(a1), ColText, FontSmallBold, Left)
+		s.Text(info, rx-v.px(126), int(a0), rx-v.px(84), int(a1), ColFaint, FontSmall, Right)
+		s.Text(combat.Short(float64(sk.Damage)), rx-v.px(82), int(a0), rx-v.px(34), int(a1), ColText, FontSmallBold, Right)
+		s.Text(combat.Pct(sk.Pct, 0), rx-v.px(32), int(a0), rx, int(a1), ColDim, FontSmall, Right)
 		s.Flush()
 	}
 }

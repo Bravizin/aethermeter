@@ -101,7 +101,7 @@
 
   .shot { display: flex; gap: 12px; align-items: flex-start; justify-content: center; }
   .shot .main { width: 310px; flex: none; filter: drop-shadow(0 30px 60px rgba(0,0,0,.55)); }
-  .shot .panel { width: 210px; flex: none; margin-top: 150px; filter: drop-shadow(0 24px 50px rgba(0,0,0,.6)); }
+  .shot .panel { width: 230px; flex: none; margin-top: 0; filter: drop-shadow(0 24px 50px rgba(0,0,0,.6)); }
 
   /* sections */
   section { padding: 72px 0; }
@@ -213,7 +213,7 @@
       <a href="#atalhos">Atalhos</a>
       <a href="#faq">Dúvidas</a>
     </div>
-    <a class="btn btn-gold btn-sm dl-link" href="downloads/AetherMeter-0.2.2.zip" download>Baixar</a>
+    <a class="btn btn-gold btn-sm dl-link" href="downloads/AetherMeter-1.0.0.zip" download>Baixar</a>
   </div>
 </nav>
 
@@ -224,18 +224,18 @@
       <h1>O DPS da sua PT, <span class="hl">em tempo real</span>, por cima do jogo.</h1>
       <p class="lead">O AetherMeter mostra quanto cada um está batendo, curando e tankando, junto com a vida do chefe e o tempo de DG. Ele só lê o tráfego de rede e não mexe no jogo.</p>
       <div class="cta">
-        <a class="btn btn-gold dl-link" href="downloads/AetherMeter-0.2.2.zip" download>
+        <a class="btn btn-gold dl-link" href="downloads/AetherMeter-1.0.0.zip" download>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
-          Baixar AetherMeter 0.2.2
+          Baixar AetherMeter 1.0.0
         </a>
         <a class="btn btn-ghost" href="#instalar">Como instalar</a>
       </div>
       <p class="dlmeta">ZIP · 3 MB · o próprio .exe é o instalador, sem precisar de administrador<br>
-        SHA-256: <code>17b6c90bc5d4eb1b6ce2aa462d343e147411f918dabb99fcf682973f64d233dd</code></p>
+        SHA-256: <code>19ed1ddfacb7890acbe52bc9ad8354cc4754f27e7de6ef87ad8e888e16e66175</code></p>
     </div>
     <div class="shot">
       <img class="main" src="img/dps_main.png" width="310" alt="Overlay do AetherMeter mostrando o DPS de seis jogadores contra um chefe">
-      <img class="panel" src="img/dps_panel.png" width="210" alt="Painel de skills de um jogador">
+      <img class="panel" src="img/dps_panel.png" width="230" alt="Painel de skills de um jogador">
     </div>
   </div>
 </header>
@@ -295,7 +295,7 @@
       <div class="card">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .8 3.2 2.6 3.5 5.2"/></svg></div>
         <h3>Só a sua PT, ou só você</h3>
-        <p>Filtra quem está em volta. Solo, ele descobre qual jogador é você e lembra o nome do personagem.</p>
+        <p>Filtra quem está em volta. Solo, ele descobre qual jogador é você, e o nome do seu personagem aparece desde o começo.</p>
       </div>
       <div class="card">
         <div class="ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/><path d="M12 3h9v9M21 3l-9 9"/></svg></div>
@@ -328,7 +328,7 @@
     <div class="steps">
       <div class="step">
         <h3>Baixe e extraia</h3>
-        <p>Baixe o <a class="dl-link" href="downloads/AetherMeter-0.2.2.zip" download>ZIP</a>, extraia e abra o <b>AetherMeter.exe</b>.</p>
+        <p>Baixe o <a class="dl-link" href="downloads/AetherMeter-1.0.0.zip" download>ZIP</a>, extraia e abra o <b>AetherMeter.exe</b>.</p>
       </div>
       <div class="step">
         <h3>Clique em “Sim”</h3>
@@ -382,7 +382,7 @@
     </details>
     <details>
       <summary>Por que aparece “Gladiador #123” em vez do nome?</summary>
-      <p>O servidor só manda os nomes quando alguém teleporta ou entra numa DG. Em PT os nomes vêm junto com os dados da party. Solo, o AetherMeter descobre qual jogador é você pelos tempos de recarga das suas skills e guarda o nome do seu personagem pra próxima vez.</p>
+      <p>O servidor só manda os nomes quando alguém teleporta ou entra numa DG. Em PT os nomes vêm junto com os dados da party. Solo, o AetherMeter descobre qual jogador é você pelos tempos de recarga das suas skills. Pra aparecer com o seu nome desde o começo, use <b>botão direito → Nome do meu personagem</b>; ele também aprende sozinho no primeiro teleporte.</p>
     </details>
     <details>
       <summary>Funciona com ExitLag, GearUP e afins?</summary>
@@ -405,9 +405,9 @@
       <img src="img/icon-512.png" width="72" height="72" alt="">
       <h2 class="sec-title">Bora medir esse DPS</h2>
       <p class="sec-sub" style="margin: 0 auto 24px">Grátis, leve e sem anúncio.</p>
-      <a class="btn btn-gold dl-link" href="downloads/AetherMeter-0.2.2.zip" download>
+      <a class="btn btn-gold dl-link" href="downloads/AetherMeter-1.0.0.zip" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
-        Baixar AetherMeter 0.2.2
+        Baixar AetherMeter 1.0.0
       </a>
     </div>
   </div>

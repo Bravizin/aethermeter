@@ -3,6 +3,7 @@ chcp 65001 >nul
 setlocal EnableExtensions
 title Publicar AetherMeter no GitHub
 cd /d "%~dp0"
+set "VER=1.0.0"
 
 echo.
 echo  === Publicar o AetherMeter no GitHub (repositorio + site + release) ===
@@ -13,7 +14,7 @@ where git >nul 2>&1
 if errorlevel 1 (
   echo  [!] O Git nao esta instalado. Instalando pelo winget...
   winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements
-  set "PATH=%PATH%;%ProgramFiles%\Git\cmd"
+  set "PATH=%PATH%;%ProgramFiles%\Git\cmd;%LOCALAPPDATA%\Programs\Git\cmd"
 )
 where git >nul 2>&1 || (echo  [x] Nao achei o Git. Instale em https://git-scm.com e rode de novo. & pause & exit /b 1)
 
@@ -22,13 +23,13 @@ where gh >nul 2>&1
 if errorlevel 1 (
   echo  [!] O GitHub CLI nao esta instalado. Instalando pelo winget...
   winget install --id GitHub.cli -e --accept-source-agreements --accept-package-agreements
-  set "PATH=%PATH%;%ProgramFiles%\GitHub CLI"
+  set "PATH=%PATH%;%ProgramFiles%\GitHub CLI;%LOCALAPPDATA%\Programs\GitHub CLI"
 )
 where gh >nul 2>&1 || (echo  [x] Nao achei o GitHub CLI. Instale em https://cli.github.com e rode de novo. & pause & exit /b 1)
 
 gh auth status >nul 2>&1
 if errorlevel 1 (
-  echo  Vai abrir o navegador pra voce entrar no GitHub. Siga as instrucoes.
+  echo  Vai aparecer um codigo: aperte ENTER, cole o codigo na pagina do GitHub e autorize.
   gh auth login --web --git-protocol https || (echo  [x] Login cancelado. & pause & exit /b 1)
 )
 for /f "delims=" %%u in ('gh api user --jq .login') do set "OWNER=%%u"
@@ -40,8 +41,10 @@ if not exist .git (
 )
 git config user.name >nul 2>&1 || git config user.name "%OWNER%"
 git config user.email >nul 2>&1 || git config user.email "%OWNER%@users.noreply.github.com"
+rem so o zip da versao atual fica no site
+for %%f in (docs\downloads\AetherMeter-*.zip) do if /I not "%%~nxf"=="AetherMeter-%VER%.zip" del "%%f"
 git add -A
-git commit -m "AetherMeter 0.2.2 + site (GitHub Pages em /docs)" >nul 2>&1
+git commit -m "AetherMeter %VER%" >nul 2>&1
 git branch -M main
 
 rem ---- repositorio no GitHub ----------------------------------------------------
@@ -62,10 +65,10 @@ gh api -X POST "repos/%OWNER%/aethermeter/pages" -f "source[branch]=main" -f "so
 gh api -X PUT "repos/%OWNER%/aethermeter/pages" -f "source[branch]=main" -f "source[path]=/docs" >nul 2>&1
 
 rem ---- release com o zip -------------------------------------------------------------
-gh release view v0.2.2 -R "%OWNER%/aethermeter" >nul 2>&1
+gh release view v%VER% -R "%OWNER%/aethermeter" >nul 2>&1
 if errorlevel 1 (
-  echo  Criando o release v0.2.2...
-  gh release create v0.2.2 "docs\downloads\AetherMeter-0.2.2.zip" -R "%OWNER%/aethermeter" --title "AetherMeter 0.2.2" --notes "Baixe o AetherMeter-0.2.2.zip, extraia e abra o AetherMeter.exe. Veja o site: https://%OWNER%.github.io/aethermeter/"
+  echo  Criando o release v%VER%...
+  gh release create v%VER% "docs\downloads\AetherMeter-%VER%.zip" -R "%OWNER%/aethermeter" --title "AetherMeter %VER%" --notes "Baixe o AetherMeter-%VER%.zip, extraia e abra o AetherMeter.exe. Veja o site: https://%OWNER%.github.io/aethermeter/"
 )
 
 echo.

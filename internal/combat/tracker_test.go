@@ -329,3 +329,22 @@ func TestLeavingPartyGoesSolo(t *testing.T) {
 		t.Fatalf("self identity %q %d", n, c)
 	}
 }
+
+func TestTypedSelfName(t *testing.T) {
+	tr, c := newT()
+	tr.SetSelfName("Leonardo")
+	for i := 0; i < 3; i++ {
+		tr.Handle(hit(7, 100, 11010000, 1000))
+		tr.Handle(proto.SkillCdEvent{Skills: []int{11010000}})
+		c.add(3 * time.Second)
+	}
+	s := tr.Snapshot(SnapshotOptions{Mode: ViewAll})
+	if len(s.Rows) != 1 || s.Rows[0].Name != "Leonardo" || !s.Rows[0].IsSelf {
+		t.Fatalf("typed name not used: %+v", s.Rows)
+	}
+	// the server's name wins once it arrives (teleport)
+	tr.Handle(proto.PlayerInfoEvent{EntityID: 7, Name: "Leozin", IsSelf: true})
+	if s := tr.Snapshot(SnapshotOptions{Mode: ViewAll}); s.Rows[0].Name != "Leozin" {
+		t.Fatalf("server name should win: %q", s.Rows[0].Name)
+	}
+}

@@ -16,7 +16,7 @@ import (
 	"aethermeter/internal/engine"
 )
 
-var version = "0.2.2"
+var version = "1.0.0"
 
 type flags struct {
 	demo, record, portable, uninstall bool
